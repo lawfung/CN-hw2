@@ -77,9 +77,9 @@ int main(int argc, char** argv){
 	int maxfd = getdtablesize();
 	int result = mkdir("./server_folder", 0777);
 	cerr << result << '\n';
-    while(1){    
-        //std::cout <<  "Waiting for connections...\n"
-        //        <<  "Server Port:" << port << std::endl;
+	while(1){    
+		//std::cout <<  "Waiting for connections...\n"
+		//        <<  "Server Port:" << port << std::endl;
 			struct timeval svrtimeout;
 			fd_set svr_fd_set;
 			svrtimeout.tv_sec = svrtimeout.tv_usec = 0;
@@ -150,9 +150,8 @@ int main(int argc, char** argv){
 				//strcpy(Message,"Computer Networking is interesting!!\n");
 				//sent = send(i ,Message,strlen(Message), 0);
 			}
-
 		} // endfor
-        // close(remoteSocket);
-    } // end while
-    return 0;
+		// close(remoteSocket);
+	} // end while
+	return 0;
 }
