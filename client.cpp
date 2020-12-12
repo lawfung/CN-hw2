@@ -12,6 +12,7 @@
 #include <fcntl.h>
 
 #define BUFF_SIZE 1024
+#define FB_SIZE 40
 
 using namespace std;
 bool checkput(string s) {
@@ -21,6 +22,17 @@ bool checkput(string s) {
 	int i;
 	for(i = 0; ss >> s; ++ i) {
 		if(i == 0 && s != "put") return 0;
+		if(i == 2) return 0;
+	}
+	return i == 2;
+}
+bool checkget(string s) {
+	stringstream ss;
+	ss.clear(); ss.str("");
+	ss << s;
+	int i;
+	for(i = 0; ss >> s; ++ i) {
+		if(i == 0 && s != "get") return 0;
 		if(i == 2) return 0;
 	}
 	return i == 2;
@@ -77,6 +89,49 @@ int main(int argc , char *argv[])
 			printf("%s", RMG);
 		}
 		else if(checkput(command)) {
+			stringstream ss; ss.str(""); ss.clear();
+			string filenm;
+			ss << command; ss >> filenm; ss >> filenm;
+			string tmps = "./client_folder/" + filenm;
+			FILE* tmp_fp = fopen(tmps.c_str(), "r");
+			if(tmp_fp == NULL) {
+				cout << "The " << filenm << " doesn't exist.\n";
+				continue; // I'm not pretty sure
+			}
+			fseek(tmp_fp, 0L, SEEK_END);
+			int _sz = ftell(tmp_fp);
+			fseek(tmp_fp, 0L, SEEK_SET);
+			command += " " + to_string(_sz);
+			write(localSocket, command.c_str(), command.size() );
+			if(DO_read(localSocket) == -1) break;
+			if(strcmp(RMG, "go ahead") == 0)	cerr << "suceed\n";
+			char putbuf[FB_SIZE + 1];
+			cerr << _sz << '\n';
+			while(_sz > 0) {
+				int rdsz = min(_sz, FB_SIZE);
+				fread(putbuf, 1, rdsz, tmp_fp);
+				//cerr << putbuf << ' ' << rdsz << '\n';
+				send(localSocket, putbuf, rdsz, 0);
+				_sz -= rdsz;
+			}
+			if(DO_read(localSocket) == -1) break;
+			if(strcmp(RMG, "done") == 0)	cerr << "suceed2\n";
+		}
+		else if(checkget(command)) {
+			write(localSocket, command.c_str(), command.size());
+			if(DO_read(localSocket) == -1) break;
+			int sz = atoi(RMG);
+			cerr << "sz=" << sz << '\n';
+			stringstream ss; ss.str(""); ss.clear();
+			string filenm;
+			ss << command; ss >> filenm; ss >> filenm;
+			if(sz == -1) {
+				cout << "The " << filenm << "doesn't exist.\n";
+				continue;
+			}
+			string sendb; sendb = "go ahead";
+			write(localSocket, sendb.c_str(), sendb.size());
+			/*
 			string filenm = command.substr(4, command.size() - 4);
 			string tmps = "./client_folder/" + filenm;
 			FILE* tmp_fp = fopen(tmps.c_str(), "r");
@@ -91,11 +146,18 @@ int main(int argc , char *argv[])
 			write(localSocket, command.c_str(), command.size() );
 			if(DO_read(localSocket) == -1) break;
 			if(strcmp(RMG, "go ahead") == 0)	cerr << "suceed\n";
-			
-
-
-				
-
+			char putbuf[FB_SIZE + 1];
+			cerr << _sz << '\n';
+			while(_sz > 0) {
+				int rdsz = min(_sz, FB_SIZE);
+				fread(putbuf, 1, rdsz, tmp_fp);
+				//cerr << putbuf << ' ' << rdsz << '\n';
+				send(localSocket, putbuf, rdsz, 0);
+				_sz -= rdsz;
+			}
+			if(DO_read(localSocket) == -1) break;
+			if(strcmp(RMG, "done") == 0)	cerr << "suceed2\n";
+			*/
 		}
 		else {
 			cout << "Command not found\n";
