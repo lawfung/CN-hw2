@@ -131,33 +131,23 @@ int main(int argc , char *argv[])
 			}
 			string sendb; sendb = "go ahead";
 			write(localSocket, sendb.c_str(), sendb.size());
-			/*
-			string filenm = command.substr(4, command.size() - 4);
-			string tmps = "./client_folder/" + filenm;
-			FILE* tmp_fp = fopen(tmps.c_str(), "r");
-			if(tmp_fp == NULL) {
-				cout << "The " << filenm << " doesn't exist.\n";
-				continue; // I'm not pretty sure
-			}
-			fseek(tmp_fp, 0L, SEEK_END);
-			int _sz = ftell(tmp_fp);
-			fseek(tmp_fp, 0L, SEEK_SET);
-			command += " " + to_string(_sz);
-			write(localSocket, command.c_str(), command.size() );
-			if(DO_read(localSocket) == -1) break;
-			if(strcmp(RMG, "go ahead") == 0)	cerr << "suceed\n";
+			
+			filenm = "./client_folder/" + filenm;
+			FILE* tmp_fp = fopen(filenm.c_str(), "w");
+
 			char putbuf[FB_SIZE + 1];
-			cerr << _sz << '\n';
-			while(_sz > 0) {
-				int rdsz = min(_sz, FB_SIZE);
-				fread(putbuf, 1, rdsz, tmp_fp);
-				//cerr << putbuf << ' ' << rdsz << '\n';
-				send(localSocket, putbuf, rdsz, 0);
-				_sz -= rdsz;
+
+			while(sz > 0) {
+				int rdsz = min(sz, FB_SIZE);
+				int len = recv(localSocket, putbuf, rdsz, 0);
+				if(len != rdsz){
+					cerr << "This is error 2\n";
+				}
+				fwrite(putbuf, 1, rdsz, tmp_fp);
+				sz -= rdsz;
 			}
-			if(DO_read(localSocket) == -1) break;
-			if(strcmp(RMG, "done") == 0)	cerr << "suceed2\n";
-			*/
+			fclose(tmp_fp);
+			cerr << "get done\n";
 		}
 		else {
 			cout << "Command not found\n";

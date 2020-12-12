@@ -74,8 +74,7 @@ int checkget(string s, int id) {
 int DO_transfer1(int id) {
 	char putbuf[FB_SIZE + 1]; memset(putbuf, 0, sizeof putbuf);
 	int rdsz = min(using_sz[id], FB_SIZE);
-	recv(id, putbuf, rdsz, 0);
-	int len = strlen(putbuf);
+	int len = recv(id, putbuf, rdsz, 0);
 	if(len == 0)	return -1;
 	if(len != rdsz){
 		cerr << "This is an error2\n";
@@ -88,19 +87,12 @@ int DO_transfer1(int id) {
 int DO_transfer2(int id) {
 	char putbuf[FB_SIZE + 1]; memset(putbuf, 0, sizeof putbuf);
 	int rdsz = min(using_sz[id], FB_SIZE);
-
-	/*
-	recv(id, putbuf, rdsz, 0);
-	int len = strlen(putbuf);
-	if(len == 0)	return -1;
-	if(len != rdsz){
-		cerr << "This is an error3\n";
-	}
-	fwrite(putbuf, 1, rdsz, using_fp[id]);
+	fread(putbuf, 1, rdsz, using_fp[id]);
+	int rt = send(id, putbuf, rdsz, 0);
+	if(rt < rdsz)	return -1;
 	using_sz[id] -= rdsz;
-	if(using_sz[id] == 0) return 2; // read done
-	return 1; // usual
-	*/
+	if(using_sz[id] == 0) return 2; // write done
+	return 1;
 }
 
 
@@ -169,8 +161,7 @@ int main(int argc, char** argv){
 				if(sta == 2) {
 					transfering[i] = 0;
 					fclose(using_fp[i]);
-					//strcpy(Message,"done");
-					//send(i ,Message,strlen(Message), 0);
+					cerr << "get done\n";
 				}
 				continue;
 			}
