@@ -76,19 +76,24 @@ int DO_transfer1(int id) {
 	int rdsz = min(using_sz[id], FB_SIZE);
 	int len = recv(id, putbuf, rdsz, 0);
 	if(len == 0)	return -1;
+	
 	if(len != rdsz){
-		cerr << "This is an error2\n";
+		cerr << "This is an rare condition 2\n";
 	}
-	fwrite(putbuf, 1, rdsz, using_fp[id]);
-	using_sz[id] -= rdsz;
+	
+	fwrite(putbuf, 1, len, using_fp[id]);
+	using_sz[id] -= len;
 	if(using_sz[id] == 0) return 2; // read done
 	return 1; // usual
 }
+int cnt;
 int DO_transfer2(int id) {
 	char putbuf[FB_SIZE + 1]; memset(putbuf, 0, sizeof putbuf);
 	int rdsz = min(using_sz[id], FB_SIZE);
 	fread(putbuf, 1, rdsz, using_fp[id]);
 	int rt = send(id, putbuf, rdsz, 0);
+	++ cnt;
+	//cerr << "cnt=" << cnt << ",rt=" << rt << '\n';
 	if(rt < rdsz)	return -1;
 	using_sz[id] -= rdsz;
 	if(using_sz[id] == 0) return 2; // write done
@@ -153,6 +158,9 @@ int main(int argc, char** argv){
 			if(connecting[i] == 0)	continue;
 			if(transfering[i] == 2) {
 				int sta = DO_transfer2(i);
+				if(sta != 1) {
+					cout << "sta = " << sta << '\n';
+				}
 				if(sta == -1) {
 					connecting[i] = 0;
 					transfering[i] = 0;
@@ -185,6 +193,7 @@ int main(int argc, char** argv){
 					fclose(using_fp[i]);
 					strcpy(Message,"done");
 					send(i ,Message,strlen(Message), 0);
+					cerr << "put done\n";
 				}
 				continue;
 			}

@@ -136,15 +136,20 @@ int main(int argc , char *argv[])
 			FILE* tmp_fp = fopen(filenm.c_str(), "w");
 
 			char putbuf[FB_SIZE + 1];
-
+			int cnt = 0;
 			while(sz > 0) {
+				++ cnt;
 				int rdsz = min(sz, FB_SIZE);
 				int len = recv(localSocket, putbuf, rdsz, 0);
+				//cerr << len << ' ' << cnt << '\n';
+				/*
 				if(len != rdsz){
 					cerr << "This is error 2\n";
+					return 0;
 				}
-				fwrite(putbuf, 1, rdsz, tmp_fp);
-				sz -= rdsz;
+				*/
+				fwrite(putbuf, 1, len, tmp_fp);
+				sz -= len;
 			}
 			fclose(tmp_fp);
 			cerr << "get done\n";
