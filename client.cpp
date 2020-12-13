@@ -10,29 +10,20 @@
 #include <stdlib.h>
 #include <sstream>
 #include <fcntl.h>
+#include "opencv2/opencv.hpp"
 
 #define BUFF_SIZE 1024
 #define FB_SIZE 40
 
 using namespace std;
-bool checkput(string s) {
+using namespace cv;
+bool check(string s, string s2) {
 	stringstream ss;
 	ss.clear(); ss.str("");
 	ss << s;
 	int i;
 	for(i = 0; ss >> s; ++ i) {
-		if(i == 0 && s != "put") return 0;
-		if(i == 2) return 0;
-	}
-	return i == 2;
-}
-bool checkget(string s) {
-	stringstream ss;
-	ss.clear(); ss.str("");
-	ss << s;
-	int i;
-	for(i = 0; ss >> s; ++ i) {
-		if(i == 0 && s != "get") return 0;
+		if(i == 0 && s != s2) return 0;
 		if(i == 2) return 0;
 	}
 	return i == 2;
@@ -88,7 +79,7 @@ int main(int argc , char *argv[])
 			if(DO_read(localSocket) == -1) break;
 			printf("%s", RMG);
 		}
-		else if(checkput(command)) {
+		else if(check(command, "put")) {
 			stringstream ss; ss.str(""); ss.clear();
 			string filenm;
 			ss << command; ss >> filenm; ss >> filenm;
@@ -104,7 +95,7 @@ int main(int argc , char *argv[])
 			command += " " + to_string(_sz);
 			write(localSocket, command.c_str(), command.size() );
 			if(DO_read(localSocket) == -1) break;
-			if(strcmp(RMG, "go ahead") == 0)	cerr << "suceed\n";
+			if(strcmp(RMG, "go ahead") == 0)	cerr << "start putting\n";
 			char putbuf[FB_SIZE + 1];
 			cerr << _sz << '\n';
 			while(_sz > 0) {
@@ -115,9 +106,9 @@ int main(int argc , char *argv[])
 				_sz -= rdsz;
 			}
 			if(DO_read(localSocket) == -1) break;
-			if(strcmp(RMG, "done") == 0)	cerr << "suceed2\n";
+			if(strcmp(RMG, "done") == 0)	cerr << "put done\n";
 		}
-		else if(checkget(command)) {
+		else if(check(command, "get")) {
 			write(localSocket, command.c_str(), command.size());
 			if(DO_read(localSocket) == -1) break;
 			int sz = atoi(RMG);
@@ -126,7 +117,7 @@ int main(int argc , char *argv[])
 			string filenm;
 			ss << command; ss >> filenm; ss >> filenm;
 			if(sz == -1) {
-				cout << "The " << filenm << "doesn't exist.\n";
+				cout << "The " << filenm << " doesn't exist.\n";
 				continue;
 			}
 			string sendb; sendb = "go ahead";
@@ -153,6 +144,59 @@ int main(int argc , char *argv[])
 			}
 			fclose(tmp_fp);
 			cerr << "get done\n";
+		}
+		else if(check(command, "play")) {
+			write(localSocket, command.c_str(), command.size());
+			if(DO_read(localSocket) == -1) break;
+			stringstream ss; ss.str(""); ss.clear();
+			string tmps(RMG); ss << tmps;
+			ss >> tmps; int sz = atoi(tmps.c_str());
+			ss >> tmps; int wid = atoi(tmps.c_str());
+			ss >> tmps; int hei = atoi(tmps.c_str());
+			ss >> tmps; int elem = atoi(tmps.c_str());
+			
+			cerr << "sz=" << sz << '\n';
+			cerr << "(wid,hei,elem) = (" 
+			<< wid << "," << hei << "," << elem << ")\n";
+
+			ss.str(""); ss.clear();
+			string filenm;
+			ss << command; ss >> filenm; ss >> filenm;
+			if(sz == -1) {
+				cout << "The " << filenm << " is not a mpg file.\n";
+				continue;
+			}
+			string sendb; sendb = "go ahead";
+			write(localSocket, sendb.c_str(), sendb.size());
+			Mat imgClient = Mat::zeros(hei, wid, CV_8UC3);
+			// continous ?? 
+			int es = 0;
+			for(int i = 0; i < sz; ++ i) {
+				int imgSize = hei * wid * elem;
+				cout << "ims=" << imgSize << '\n';
+				uchar buffer[imgSize];
+				int have = 0;
+				cerr << "i=" << i << '\n';
+				while(have < imgSize) {
+					//cerr << "have=" << have << '\n';
+					int gt = recv(localSocket, buffer + have, 
+								imgSize - have, 0);
+					have += gt;
+				}
+				uchar *iptr = imgClient.data;
+				memcpy(iptr, buffer, imgSize);
+				if(es == 0) {
+					imshow("Video", imgClient);
+					char c = (char)waitKey(33.3333);
+					if(c == 27){
+						destroyAllWindows();
+						es = 1;
+					}
+				}
+			}
+			cerr << "play finish\n";
+			
+			
 		}
 		else {
 			cout << "Command not found\n";

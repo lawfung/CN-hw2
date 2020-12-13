@@ -11,16 +11,22 @@
 #include <glob.h>
 #include <vector>
 #include <sstream>
+#include "opencv2/opencv.hpp"
 
 #define BUFF_SIZE 1024
 #define FB_SIZE 40
 #define MAXFD 2048
 using namespace std;
+using namespace cv;
 
 int connecting[MAXFD];
 int transfering[MAXFD]; // 1 : put, 2 : get 
 FILE* using_fp[MAXFD];
 int using_sz[MAXFD];
+int using_wid[MAXFD];
+int using_hei[MAXFD];
+int using_elem[MAXFD];
+VideoCapture using_cap[MAXFD];
 string using_filenm[MAXFD];
 
 vector<string> globVector(const string& pattern) {
@@ -71,6 +77,45 @@ int checkget(string s, int id) {
 	return 1;
 
 }
+bool file_exists (string s) {
+	struct stat buff;
+	return (stat(s.c_str(), &buff) == 0);
+}
+int checkplay(string s, int id) {
+	stringstream ss;
+	ss.clear(); ss.str("");
+	ss << s;
+	int ii;
+	for(ii = 0; ss >> s; ++ ii) {
+		if(ii == 0 && s != "play")	return 0;
+		if(ii == 1) using_filenm[id] = s;
+		if(ii == 2) return 0;
+	}
+	if(ii != 2)	return 0;
+	using_filenm[id] = "./server_folder/" + using_filenm[id];
+	
+	if(using_filenm[id].substr(using_filenm[id].size() - 4, 4) != ".mpg") {
+		cerr << "not mpg file\n";
+	}
+	int result = access(s.c_str(), F_OK);
+	cerr << "result = " << result << '\n';
+	perror(using_filenm[id].c_str());
+	if(using_filenm[id].substr(using_filenm[id].size() - 4, 4) != ".mpg"
+		|| file_exists(using_filenm[id]) == 0 ){
+		using_sz[id] = -1;
+		return 1;
+	}
+	using_cap[id] = VideoCapture(using_filenm[id].c_str());
+	using_wid[id] = using_cap[id].get(CV_CAP_PROP_FRAME_WIDTH);
+	using_hei[id] = using_cap[id].get(CV_CAP_PROP_FRAME_HEIGHT);
+	using_sz[id] = using_cap[id].get(CV_CAP_PROP_FRAME_COUNT);
+		Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
+		using_cap[id] >> imgServer;
+	using_elem[id] = imgServer.elemSize();
+	using_cap[id] = VideoCapture(using_filenm[id].c_str());
+	return 1;
+
+}
 int DO_transfer1(int id) {
 	char putbuf[FB_SIZE + 1]; memset(putbuf, 0, sizeof putbuf);
 	int rdsz = min(using_sz[id], FB_SIZE);
@@ -95,6 +140,24 @@ int DO_transfer2(int id) {
 	++ cnt;
 	//cerr << "cnt=" << cnt << ",rt=" << rt << '\n';
 	if(rt < rdsz)	return -1;
+	using_sz[id] -= rdsz;
+	if(using_sz[id] == 0) return 2; // write done
+	return 1;
+}
+int DO_transfer3(int id) {
+	cerr << using_sz[id] << '\n';
+	int rdsz = min(using_sz[id], 1);
+	Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
+	// is continuous
+	int rt;
+	for(int i = 0; i < rdsz; ++ i) {
+		using_cap[id] >> imgServer;
+		int imgSize = imgServer.total() * imgServer.elemSize();
+		uchar buffer[imgSize];
+		memcpy(buffer, imgServer.data, imgSize);
+		rt = send(id, buffer, imgSize, 0);
+		if(rt < imgSize) return -1;
+	}
 	using_sz[id] -= rdsz;
 	if(using_sz[id] == 0) return 2; // write done
 	return 1;
@@ -173,6 +236,25 @@ int main(int argc, char** argv){
 				}
 				continue;
 			}
+			
+			if(transfering[i] == 3) {
+				int sta = DO_transfer3(i);
+				if(sta != 1) {
+					cout << "sta = " << sta << '\n';
+				}
+				if(sta == -1) {
+					connecting[i] = 0;
+					transfering[i] = 0;
+					using_cap[i].release();
+					// destroy window ?????????
+				}
+				if(sta == 2) {
+					transfering[i] = 0;
+					using_cap[i].release();
+					cerr << "play finish\n";
+				}
+				continue;
+			}
 				struct timeval timeout;
 				fd_set tmp_fd_set;
 				timeout.tv_sec = timeout.tv_usec = 0;
@@ -241,8 +323,21 @@ int main(int argc, char** argv){
 
 				if(using_sz[i] == -1)	continue;
 				recv(i, Message, BUFF_SIZE, 0);
-				if(strcmp(Message, "go ahead") == 0) cerr << "suceed\n";
+				if(strcmp(Message, "go ahead") == 0) cerr << "start get\n";
 				transfering[i] = 2;
+			}
+			else if(checkplay(ope, i) ) {
+				string tmp = to_string(using_sz[i]);
+				tmp += " " + to_string(using_wid[i]);
+				tmp += " " + to_string(using_hei[i]);
+				tmp += " " + to_string(using_elem[i]);
+				strcpy(Message, tmp.c_str() );
+				send(i ,Message,strlen(Message), 0);
+
+				if(using_sz[i] == -1)	continue;
+				recv(i, Message, BUFF_SIZE, 0);
+				if(strcmp(Message, "go ahead") == 0) cerr << "start play\n";
+				transfering[i] = 3;
 			}
 			else {
 				cerr << "This is an error\n";
