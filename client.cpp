@@ -142,13 +142,6 @@ int main(int argc , char *argv[])
 				++ cnt;
 				int rdsz = min(sz, FB_SIZE);
 				int len = recv(localSocket, putbuf, rdsz, 0);
-				//cerr << len << ' ' << cnt << '\n';
-				/*
-				if(len != rdsz){
-					cerr << "This is error 2\n";
-					return 0;
-				}
-				*/
 				fwrite(putbuf, 1, len, tmp_fp);
 				sz -= len;
 			}
@@ -160,57 +153,52 @@ int main(int argc , char *argv[])
 			if(DO_read(localSocket) == -1) break;
 			ss.str(""); ss.clear();
 			string tmps(RMG); ss << tmps;
-			ss >> tmps; ll sz = atoi(tmps.c_str());
 			ss >> tmps; int wid = atoi(tmps.c_str());
 			ss >> tmps; int hei = atoi(tmps.c_str());
-			ss >> tmps; int elem = atoi(tmps.c_str());
-			cerr << "There are "  << sz << " frames\n";
-			cerr << "(wid,hei,elem) = (" 
-			<< wid << "," << hei << "," << elem << ")\n";
+			cerr << "(wid,hei) = (" << wid << "," << hei << ")\n";
 
 			ss.str(""); ss.clear();
 			string filenm;
 			ss << command; ss >> filenm; ss >> filenm;
-			if(sz == -1) {
+			if(wid == -1) {
 				cout << "The " << filenm << " is not a mpg file.\n";
 				continue;
 			}
 			Mat imgClient = Mat::zeros(hei, wid, CV_8UC3);
-			// continous ?? 
-			int es = 0;
-			for(int i = 0; i < sz; ++ i) {
+			// continous ??
+			while(1) {
+				//say go
 				string sendb; sendb = "go ahead";
-				if(es == 1) {
-					sendb = "I quit";
-					write(localSocket, sendb.c_str(), sendb.size());
-					break;
-				}
 				write(localSocket, sendb.c_str(), sendb.size());
-				int imgSize = hei * wid * elem;
-				//cout << "ims=" << imgSize << '\n';
-				uchar buffer[imgSize];
+				// get imgSize
+				if(DO_read(localSocket) == -1) break;
+				int imgSize = atoi(RMG);
+				if(imgSize == 0) break;
+				// say OK
+				sendb = "OK";
+				write(localSocket, sendb.c_str(), sendb.size());
+				// get frame
+				uchar* buffer = (uchar*)malloc(imgSize);
+				//uchar buffer[imgSize];
 				int have = 0;
 				while(have < imgSize) {
-					//cerr << "have=" << have << '\n';
 					int gt = recv(localSocket, buffer + have, 
 								imgSize - have, 0);
 					have += gt;
 				}
 				uchar *iptr = imgClient.data;
 				memcpy(iptr, buffer, imgSize);
-				//if(es == 0) {
-					imshow("Video", imgClient);
-				//cerr << "i=" << i << '\n';
-					char c = (char)waitKey(33);
-					if(c == 27){
-						destroyAllWindows();
-						es = 1;
-					}
-				//}
+				imshow("Video", imgClient);
+				free(buffer);
+				// check leave
+				char c = (char)waitKey(33);
+				if(c == 27) {
+					sendb = "I quit";
+					write(localSocket, sendb.c_str(), sendb.size());
+					break;
+				}
 			}
-			if(es == 0) {
-				destroyAllWindows();
-			}
+			destroyAllWindows();
 			cerr << "play finish\n";
 			
 			

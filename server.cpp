@@ -26,7 +26,6 @@ FILE* using_fp[MAXFD];
 ll using_sz[MAXFD];
 int using_wid[MAXFD];
 int using_hei[MAXFD];
-int using_elem[MAXFD];
 VideoCapture using_cap[MAXFD];
 string using_filenm[MAXFD];
 
@@ -51,7 +50,6 @@ bool checkput(string s, string &name, ll &sz) {
 		if(i == 2) sz = stoi(s);
 		if(i == 3) return 0;
 	}
-	//cerr << "i=" << i << '\n';
 	return i == 3;
 }
 int checkget(string s, int id) {
@@ -94,28 +92,15 @@ int checkplay(string s, int id) {
 	}
 	if(ii != 2)	return 0;
 	using_filenm[id] = "./server_folder/" + using_filenm[id];
-	/*
-	if(using_filenm[id].substr(using_filenm[id].size() - 4, 4) != ".mpg") {
-		cerr << "not mpg file\n";
-	}
-	*/
-	// int result = access(s.c_str(), F_OK);
-	// cerr << "result = " << result << '\n';
-	// perror(using_filenm[id].c_str());
 	if(using_filenm[id].substr(using_filenm[id].size() - 4, 4) != ".mpg"
 		|| file_exists(using_filenm[id]) == 0 ){
-		using_sz[id] = -1;
+		using_wid[id] = -1;
+		using_hei[id] = -1;
 		return 1;
 	}
 	using_cap[id] = VideoCapture(using_filenm[id].c_str());
 	using_wid[id] = using_cap[id].get(CV_CAP_PROP_FRAME_WIDTH);
 	using_hei[id] = using_cap[id].get(CV_CAP_PROP_FRAME_HEIGHT);
-	using_sz[id] = using_cap[id].get(CV_CAP_PROP_FRAME_COUNT);
-	cerr << using_sz[id] << '\n';
-		Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
-		using_cap[id] >> imgServer;
-	using_elem[id] = imgServer.elemSize();
-	using_cap[id] = VideoCapture(using_filenm[id].c_str());
 	return 1;
 
 }
@@ -141,7 +126,6 @@ int DO_transfer2(int id) {
 	fread(putbuf, 1, rdsz, using_fp[id]);
 	int rt = send(id, putbuf, rdsz, 0);
 	++ cnt;
-	//cerr << "cnt=" << cnt << ",rt=" << rt << '\n';
 	if(rt < rdsz)	return -1;
 	using_sz[id] -= rdsz;
 	if(using_sz[id] == 0) return 2; // write done
@@ -152,20 +136,28 @@ int DO_transfer3(int id) {
 	int rt = recv(id, Message, BUFF_SIZE, 0);
 	if(rt == 0) return -1;
 	if(strcmp(Message, "go ahead") != 0) return 2;
-	//cerr << using_sz[id] << '\n';
-	int rdsz = min(using_sz[id], 1LL);
+	
 	Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
 	// is continuous
-	for(int i = 0; i < rdsz; ++ i) {
-		using_cap[id] >> imgServer;
-		int imgSize = imgServer.total() * imgServer.elemSize();
-		uchar buffer[imgSize];
+	using_cap[id] >> imgServer;
+	int imgSize = imgServer.total() * imgServer.elemSize();
+	strcpy(Message, to_string(imgSize).c_str());
+	rt = send(id ,Message,strlen(Message), 0);
+	if(rt == 0) return -1;
+	if(imgSize == 0) return 2;
+
+	memset(Message, 0, sizeof Message);
+	rt = recv(id, Message, BUFF_SIZE, 0);
+	if(rt == 0) return -1;
+	if(strcmp(Message, "OK") != 0) return 2;
+	
+	//	uchar buffer[imgSize];
+	uchar* buffer = (uchar*)malloc(imgSize);
 		memcpy(buffer, imgServer.data, imgSize);
 		rt = send(id, buffer, imgSize, 0);
 		if(rt < imgSize) return -1;
-	}
-	using_sz[id] -= rdsz;
-	if(using_sz[id] == 0) return 2; // write done
+	free(buffer);
+	
 	return 1;
 }
 
@@ -208,10 +200,7 @@ int main(int argc, char** argv){
 	else {
 		cout << "Create folder\n";
 	}
-	//cerr << result << '\n';
 	while(1){    
-		//std::cout <<  "Waiting for connections...\n"
-		//        <<  "Server Port:" << port << std::endl;
 			struct timeval svrtimeout;
 			fd_set svr_fd_set;
 			svrtimeout.tv_sec = svrtimeout.tv_usec = 0;
@@ -233,11 +222,6 @@ int main(int argc, char** argv){
 			if(connecting[i] == 0)	continue;
 			if(transfering[i] == 2) {
 				int sta = DO_transfer2(i);
-				/*
-				if(sta != 1) {
-					cout << "sta = " << sta << '\n';
-				}
-				*/
 				if(sta == -1) {
 					connecting[i] = 0;
 					transfering[i] = 0;
@@ -277,11 +261,6 @@ int main(int argc, char** argv){
 			}
 			if(transfering[i] == 3) {
 				int sta = DO_transfer3(i);
-				/*
-				if(sta != 1) {
-					cout << "sta = " << sta << '\n';
-				}
-				*/
 				if(sta == -1) {
 					connecting[i] = 0;
 					transfering[i] = 0;
@@ -310,8 +289,6 @@ int main(int argc, char** argv){
 			if(ope == "ls") {
 				string folder_path = "server_folder/*";
 				int fol_sz = folder_path.size() - 1;
-				//string cmd = "ls -la server_folder";
-				//system(cmd.c_str());
 				vector<string> files = globVector(folder_path);
 				for(int j = 0; j < files.size(); ++ j) {
 					files[j] = files[j].substr(fol_sz, files[j].size() - fol_sz);
@@ -323,7 +300,6 @@ int main(int argc, char** argv){
 				for(int j = 0; j < files.size(); ++ j ) {
 					strcpy(lsbuf + strlen(lsbuf), files[j].c_str());
 				}
-				//cout << lsbuf;
 				send(i, lsbuf, strlen(lsbuf), 0);
 			}
 			else if(checkput(ope, using_filenm[i], using_sz[i])) {
@@ -340,31 +316,25 @@ int main(int argc, char** argv){
 				send(i ,Message,strlen(Message), 0);
 
 				if(using_sz[i] == -1)	continue;
+				memset(Message, 0, sizeof Message);
 				recv(i, Message, BUFF_SIZE, 0);
 				if(strcmp(Message, "go ahead") == 0) cout << "start get\n";
 				transfering[i] = 2;
 			}
 			else if(checkplay(ope, i) ) {
-				string tmp = to_string(using_sz[i]);
-				tmp += " " + to_string(using_wid[i]);
-				tmp += " " + to_string(using_hei[i]);
-				tmp += " " + to_string(using_elem[i]);
+				string tmp = to_string(using_wid[i])
+							+ " " + to_string(using_hei[i]);
+				//cerr << tmp << '\n';
+
 				strcpy(Message, tmp.c_str() );
 				send(i ,Message,strlen(Message), 0);
 
-				if(using_sz[i] == -1)	continue;
-				//recv(i, Message, BUFF_SIZE, 0);
-				//if(strcmp(Message, "go ahead") == 0) cout << "start play\n";
+				if(using_wid[i] == -1)	continue;
 				transfering[i] = 3;
 				cout << "start play\n";
 			}
 			else {
 				cerr << "This is an error\n";
-				//int sent;
-				//strcpy(Message,"Command not found\n");
-				//sent = send(i ,Message,strlen(Message), 0);
-				//strcpy(Message,"Computer Networking is interesting!!\n");
-				//sent = send(i ,Message,strlen(Message), 0);
 			}
 		} // endfor
 		// close(remoteSocket);
