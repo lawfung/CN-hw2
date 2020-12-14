@@ -1,4 +1,4 @@
-CC = g++ -std=c++11
+CC = g++ -std=c++11 -Wall -Wextra -Wshadow
 OPENCV =  `pkg-config --cflags --libs opencv`
 PTHREAD = -pthread
 

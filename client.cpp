@@ -17,6 +17,7 @@
 
 using namespace std;
 using namespace cv;
+typedef long long ll;
 bool check(string s, string s2) {
 	stringstream ss;
 	ss.clear(); ss.str("");
@@ -76,6 +77,9 @@ int main(int argc , char *argv[])
     }
     //char receiveMessage[BUFF_SIZE] = {};
     int result = mkdir("./client_folder", 0777);
+	if(result == -1) {
+		cerr << "Folder already exists\n";
+	}
     while(1){
     	string command;
 		getline(cin, command);
@@ -86,7 +90,7 @@ int main(int argc , char *argv[])
 			printf("%s", RMG);
 		}
 		else if(check(command, "put")) {
-			stringstream ss; ss.str(""); ss.clear();
+			ss.str(""); ss.clear();
 			string filenm;
 			ss << command; ss >> filenm; ss >> filenm;
 			string tmps = "./client_folder/" + filenm;
@@ -119,7 +123,7 @@ int main(int argc , char *argv[])
 			if(DO_read(localSocket) == -1) break;
 			int sz = atoi(RMG);
 			//cerr << "sz=" << sz << '\n';
-			stringstream ss; ss.str(""); ss.clear();
+			ss.str(""); ss.clear();
 			string filenm;
 			ss << command; ss >> filenm; ss >> filenm;
 			if(sz == -1) {
@@ -154,9 +158,9 @@ int main(int argc , char *argv[])
 		else if(check(command, "play")) {
 			write(localSocket, command.c_str(), command.size());
 			if(DO_read(localSocket) == -1) break;
-			stringstream ss; ss.str(""); ss.clear();
+			ss.str(""); ss.clear();
 			string tmps(RMG); ss << tmps;
-			ss >> tmps; int sz = atoi(tmps.c_str());
+			ss >> tmps; ll sz = atoi(tmps.c_str());
 			ss >> tmps; int wid = atoi(tmps.c_str());
 			ss >> tmps; int hei = atoi(tmps.c_str());
 			ss >> tmps; int elem = atoi(tmps.c_str());
@@ -197,7 +201,7 @@ int main(int argc , char *argv[])
 				//if(es == 0) {
 					imshow("Video", imgClient);
 				//cerr << "i=" << i << '\n';
-					char c = (char)waitKey(33.3333);
+					char c = (char)waitKey(33);
 					if(c == 27){
 						destroyAllWindows();
 						es = 1;
@@ -212,7 +216,7 @@ int main(int argc , char *argv[])
 			
 		}
 		else {
-			cout << "Command not found\n";
+			cout << "Command not found.\n";
 		}
 
 

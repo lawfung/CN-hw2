@@ -18,11 +18,12 @@
 #define MAXFD 2048
 using namespace std;
 using namespace cv;
+typedef long long ll;
 
 int connecting[MAXFD];
 int transfering[MAXFD]; // 1 : put, 2 : get 
 FILE* using_fp[MAXFD];
-int using_sz[MAXFD];
+ll using_sz[MAXFD];
 int using_wid[MAXFD];
 int using_hei[MAXFD];
 int using_elem[MAXFD];
@@ -39,7 +40,7 @@ vector<string> globVector(const string& pattern) {
 	globfree(&glob_result);
 	return files;
 }
-bool checkput(string s, string &name, int &sz) {
+bool checkput(string s, string &name, ll &sz) {
 	stringstream ss;
 	ss.clear(); ss.str("");
 	ss << s;
@@ -110,6 +111,7 @@ int checkplay(string s, int id) {
 	using_wid[id] = using_cap[id].get(CV_CAP_PROP_FRAME_WIDTH);
 	using_hei[id] = using_cap[id].get(CV_CAP_PROP_FRAME_HEIGHT);
 	using_sz[id] = using_cap[id].get(CV_CAP_PROP_FRAME_COUNT);
+	cerr << using_sz[id] << '\n';
 		Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
 		using_cap[id] >> imgServer;
 	using_elem[id] = imgServer.elemSize();
@@ -119,7 +121,7 @@ int checkplay(string s, int id) {
 }
 int DO_transfer1(int id) {
 	char putbuf[FB_SIZE + 1]; memset(putbuf, 0, sizeof putbuf);
-	int rdsz = min(using_sz[id], FB_SIZE);
+	int rdsz = min(using_sz[id], (ll)FB_SIZE);
 	int len = recv(id, putbuf, rdsz, 0);
 	if(len == 0)	return -1;
 	
@@ -135,7 +137,7 @@ int DO_transfer1(int id) {
 int cnt;
 int DO_transfer2(int id) {
 	char putbuf[FB_SIZE + 1]; memset(putbuf, 0, sizeof putbuf);
-	int rdsz = min(using_sz[id], FB_SIZE);
+	int rdsz = min(using_sz[id], (ll)FB_SIZE);
 	fread(putbuf, 1, rdsz, using_fp[id]);
 	int rt = send(id, putbuf, rdsz, 0);
 	++ cnt;
@@ -151,7 +153,7 @@ int DO_transfer3(int id) {
 	if(rt == 0) return -1;
 	if(strcmp(Message, "go ahead") != 0) return 2;
 	//cerr << using_sz[id] << '\n';
-	int rdsz = min(using_sz[id], 1);
+	int rdsz = min(using_sz[id], 1LL);
 	Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
 	// is continuous
 	for(int i = 0; i < rdsz; ++ i) {
@@ -302,7 +304,7 @@ int main(int argc, char** argv){
 				continue;
 			}
 			string ope(tmpstr);
-			string _bb; int _cc;
+			string _bb;// int _cc;
 			cout << "Received a operation from connection " << i;
 			cout << ", this operation is \"" << ope << "\"\n";
 			if(ope == "ls") {
