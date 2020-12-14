@@ -13,7 +13,7 @@
 #include "opencv2/opencv.hpp"
 
 #define BUFF_SIZE 1024
-#define FB_SIZE 40
+#define FB_SIZE 2048
 
 using namespace std;
 using namespace cv;
@@ -57,9 +57,15 @@ int main(int argc , char *argv[])
     struct sockaddr_in info;
     bzero(&info,sizeof(info));
 
+	string iis(argv[1]);
+	stringstream ss;  ss.clear(); ss.str(""); ss << iis;
+	string ip_s; getline(ss, ip_s, ':');
+	string port_s; getline(ss, port_s, ':');
+	cerr << ip_s << ' ' << port_s << '\n';
+
     info.sin_family = PF_INET;
-    info.sin_addr.s_addr = inet_addr("127.0.0.1");
-    int port = atoi(argv[1]);
+    info.sin_addr.s_addr = inet_addr(ip_s.c_str() );
+    int port = atoi(port_s.c_str());
     info.sin_port = htons(port);
 
 
@@ -97,7 +103,7 @@ int main(int argc , char *argv[])
 			if(DO_read(localSocket) == -1) break;
 			if(strcmp(RMG, "go ahead") == 0)	cerr << "start putting\n";
 			char putbuf[FB_SIZE + 1];
-			cerr << _sz << '\n';
+			//cerr << _sz << '\n';
 			while(_sz > 0) {
 				int rdsz = min(_sz, FB_SIZE);
 				fread(putbuf, 1, rdsz, tmp_fp);
@@ -112,7 +118,7 @@ int main(int argc , char *argv[])
 			write(localSocket, command.c_str(), command.size());
 			if(DO_read(localSocket) == -1) break;
 			int sz = atoi(RMG);
-			cerr << "sz=" << sz << '\n';
+			//cerr << "sz=" << sz << '\n';
 			stringstream ss; ss.str(""); ss.clear();
 			string filenm;
 			ss << command; ss >> filenm; ss >> filenm;
@@ -154,8 +160,7 @@ int main(int argc , char *argv[])
 			ss >> tmps; int wid = atoi(tmps.c_str());
 			ss >> tmps; int hei = atoi(tmps.c_str());
 			ss >> tmps; int elem = atoi(tmps.c_str());
-			
-			cerr << "sz=" << sz << '\n';
+			cerr << "There are "  << sz << " frames\n";
 			cerr << "(wid,hei,elem) = (" 
 			<< wid << "," << hei << "," << elem << ")\n";
 
@@ -166,17 +171,21 @@ int main(int argc , char *argv[])
 				cout << "The " << filenm << " is not a mpg file.\n";
 				continue;
 			}
-			string sendb; sendb = "go ahead";
-			write(localSocket, sendb.c_str(), sendb.size());
 			Mat imgClient = Mat::zeros(hei, wid, CV_8UC3);
 			// continous ?? 
 			int es = 0;
 			for(int i = 0; i < sz; ++ i) {
+				string sendb; sendb = "go ahead";
+				if(es == 1) {
+					sendb = "I quit";
+					write(localSocket, sendb.c_str(), sendb.size());
+					break;
+				}
+				write(localSocket, sendb.c_str(), sendb.size());
 				int imgSize = hei * wid * elem;
-				cout << "ims=" << imgSize << '\n';
+				//cout << "ims=" << imgSize << '\n';
 				uchar buffer[imgSize];
 				int have = 0;
-				cerr << "i=" << i << '\n';
 				while(have < imgSize) {
 					//cerr << "have=" << have << '\n';
 					int gt = recv(localSocket, buffer + have, 
@@ -185,14 +194,18 @@ int main(int argc , char *argv[])
 				}
 				uchar *iptr = imgClient.data;
 				memcpy(iptr, buffer, imgSize);
-				if(es == 0) {
+				//if(es == 0) {
 					imshow("Video", imgClient);
+				//cerr << "i=" << i << '\n';
 					char c = (char)waitKey(33.3333);
 					if(c == 27){
 						destroyAllWindows();
 						es = 1;
 					}
-				}
+				//}
+			}
+			if(es == 0) {
+				destroyAllWindows();
 			}
 			cerr << "play finish\n";
 			

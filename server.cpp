@@ -14,7 +14,7 @@
 #include "opencv2/opencv.hpp"
 
 #define BUFF_SIZE 1024
-#define FB_SIZE 40
+#define FB_SIZE 2048
 #define MAXFD 2048
 using namespace std;
 using namespace cv;
@@ -93,13 +93,14 @@ int checkplay(string s, int id) {
 	}
 	if(ii != 2)	return 0;
 	using_filenm[id] = "./server_folder/" + using_filenm[id];
-	
+	/*
 	if(using_filenm[id].substr(using_filenm[id].size() - 4, 4) != ".mpg") {
 		cerr << "not mpg file\n";
 	}
-	int result = access(s.c_str(), F_OK);
-	cerr << "result = " << result << '\n';
-	perror(using_filenm[id].c_str());
+	*/
+	// int result = access(s.c_str(), F_OK);
+	// cerr << "result = " << result << '\n';
+	// perror(using_filenm[id].c_str());
 	if(using_filenm[id].substr(using_filenm[id].size() - 4, 4) != ".mpg"
 		|| file_exists(using_filenm[id]) == 0 ){
 		using_sz[id] = -1;
@@ -123,7 +124,7 @@ int DO_transfer1(int id) {
 	if(len == 0)	return -1;
 	
 	if(len != rdsz){
-		cerr << "This is an rare condition 2\n";
+		cerr << "This is an rare condition but harmless.\n";
 	}
 	
 	fwrite(putbuf, 1, len, using_fp[id]);
@@ -145,11 +146,14 @@ int DO_transfer2(int id) {
 	return 1;
 }
 int DO_transfer3(int id) {
-	cerr << using_sz[id] << '\n';
+    char Message[BUFF_SIZE] = {};
+	int rt = recv(id, Message, BUFF_SIZE, 0);
+	if(rt == 0) return -1;
+	if(strcmp(Message, "go ahead") != 0) return 2;
+	//cerr << using_sz[id] << '\n';
 	int rdsz = min(using_sz[id], 1);
 	Mat imgServer = Mat::zeros(using_hei[id], using_wid[id], CV_8UC3 );
 	// is continuous
-	int rt;
 	for(int i = 0; i < rdsz; ++ i) {
 		using_cap[id] >> imgServer;
 		int imgSize = imgServer.total() * imgServer.elemSize();
@@ -196,7 +200,13 @@ int main(int argc, char** argv){
 	listen(localSocket , 3);
 	int maxfd = getdtablesize();
 	int result = mkdir("./server_folder", 0777);
-	cerr << result << '\n';
+	if(result == -1) {
+		cout << "Folder already exists.\n";
+	}
+	else {
+		cout << "Create folder\n";
+	}
+	//cerr << result << '\n';
 	while(1){    
 		//std::cout <<  "Waiting for connections...\n"
 		//        <<  "Server Port:" << port << std::endl;
@@ -221,9 +231,11 @@ int main(int argc, char** argv){
 			if(connecting[i] == 0)	continue;
 			if(transfering[i] == 2) {
 				int sta = DO_transfer2(i);
+				/*
 				if(sta != 1) {
 					cout << "sta = " << sta << '\n';
 				}
+				*/
 				if(sta == -1) {
 					connecting[i] = 0;
 					transfering[i] = 0;
@@ -237,24 +249,6 @@ int main(int argc, char** argv){
 				continue;
 			}
 			
-			if(transfering[i] == 3) {
-				int sta = DO_transfer3(i);
-				if(sta != 1) {
-					cout << "sta = " << sta << '\n';
-				}
-				if(sta == -1) {
-					connecting[i] = 0;
-					transfering[i] = 0;
-					using_cap[i].release();
-					// destroy window ?????????
-				}
-				if(sta == 2) {
-					transfering[i] = 0;
-					using_cap[i].release();
-					cerr << "play finish\n";
-				}
-				continue;
-			}
 				struct timeval timeout;
 				fd_set tmp_fd_set;
 				timeout.tv_sec = timeout.tv_usec = 0;
@@ -279,6 +273,26 @@ int main(int argc, char** argv){
 				}
 				continue;
 			}
+			if(transfering[i] == 3) {
+				int sta = DO_transfer3(i);
+				/*
+				if(sta != 1) {
+					cout << "sta = " << sta << '\n';
+				}
+				*/
+				if(sta == -1) {
+					connecting[i] = 0;
+					transfering[i] = 0;
+					using_cap[i].release();
+					// destroy window ?????????
+				}
+				if(sta == 2) {
+					transfering[i] = 0;
+					using_cap[i].release();
+					cerr << "play finish\n";
+				}
+				continue;
+			}
 
 			char tmpstr[FB_SIZE + 1];	memset(tmpstr, 0, sizeof tmpstr);
 			read(i, tmpstr, FB_SIZE);
@@ -289,7 +303,8 @@ int main(int argc, char** argv){
 			}
 			string ope(tmpstr);
 			string _bb; int _cc;
-			cout << "This operation is " << ope << '\n';
+			cout << "Received a operation from connection " << i;
+			cout << ", this operation is \"" << ope << "\"\n";
 			if(ope == "ls") {
 				string folder_path = "server_folder/*";
 				int fol_sz = folder_path.size() - 1;
@@ -306,7 +321,7 @@ int main(int argc, char** argv){
 				for(int j = 0; j < files.size(); ++ j ) {
 					strcpy(lsbuf + strlen(lsbuf), files[j].c_str());
 				}
-				cout << lsbuf;
+				//cout << lsbuf;
 				send(i, lsbuf, strlen(lsbuf), 0);
 			}
 			else if(checkput(ope, using_filenm[i], using_sz[i])) {
@@ -315,6 +330,7 @@ int main(int argc, char** argv){
 				
 				using_filenm[i] = "./server_folder/" + using_filenm[i];
 				using_fp[i] = fopen(using_filenm[i].c_str(), "w");
+				cout << "start put\n";
 				transfering[i] = 1;
 			}
 			else if(checkget(ope, i) ) {
@@ -323,7 +339,7 @@ int main(int argc, char** argv){
 
 				if(using_sz[i] == -1)	continue;
 				recv(i, Message, BUFF_SIZE, 0);
-				if(strcmp(Message, "go ahead") == 0) cerr << "start get\n";
+				if(strcmp(Message, "go ahead") == 0) cout << "start get\n";
 				transfering[i] = 2;
 			}
 			else if(checkplay(ope, i) ) {
@@ -335,9 +351,10 @@ int main(int argc, char** argv){
 				send(i ,Message,strlen(Message), 0);
 
 				if(using_sz[i] == -1)	continue;
-				recv(i, Message, BUFF_SIZE, 0);
-				if(strcmp(Message, "go ahead") == 0) cerr << "start play\n";
+				//recv(i, Message, BUFF_SIZE, 0);
+				//if(strcmp(Message, "go ahead") == 0) cout << "start play\n";
 				transfering[i] = 3;
+				cout << "start play\n";
 			}
 			else {
 				cerr << "This is an error\n";
