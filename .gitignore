@@ -1,2 +1,13 @@
 server_folder/*
 client_folder/*
+
+*.png
+*.aux
+*.fdb*
+*.fls
+*.log
+*.tex
+*.gz
+*.xdv
+server
+client
