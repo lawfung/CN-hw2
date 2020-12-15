@@ -9,5 +9,3 @@ client_folder/*
 *.tex
 *.gz
 *.xdv
-server
-client
